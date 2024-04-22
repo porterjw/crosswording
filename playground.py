@@ -53,10 +53,11 @@ class InvalidWordFit(Exception):
         super().__init__(message)
 
 class Crossword:
-    def __init__(self, cols, rows, empty = '#', available_words=[]):
+    def __init__(self, cols, rows, gamedata, empty = '#', available_words=[]):
         self.cols = cols
         self.rows = rows
         self.empty = empty
+        self.gamedata = gamedata # this should be by reference conceptually.
         self.available_words = available_words
         self.current_words = []
         self.linked_letters_count = 0
@@ -66,7 +67,7 @@ class Crossword:
     def wrapWords(self):
         words = []
         for word in self.available_words:
-            words.append(Word(word))
+            words.append(Word(word, clue=self.gamedata[word]))
         self.available_words = words
 
     def init_board(self):
@@ -283,6 +284,29 @@ class Crossword:
         score = (fw + (0.5 * ll)) * fr * lr
         return score
 
+    def schema(self):
+        schema = {
+            'across': {
+
+            },
+            'down': {
+
+            }
+        }
+
+        for count, word in enumerate(self.current_words):
+            word_details = {
+                'clue': word.clue,
+                'answer': word.word,
+                'row': word.row,
+                'col': word.col
+            }
+            if word.vertical:
+                schema['down'][str(count)] = word_details
+            else:
+                schema['across'][str(count)] = word_details
+        return schema
+
     def compute_crossword(self, time_permitted):
         print("computing crosswords now...")
         empty = duplicate(self)
@@ -301,8 +325,10 @@ class Crossword:
             possible_cw[board_score] = copy
 
         best = sorted(cw_scores)[-1]
-        print(best)
-        print(possible_cw[best].print_board())
+        print("Best board")
+        possible_cw[best].print_board()
+        return possible_cw[best].schema()
+
 class Word:
     def __init__(self, word=None, clue=None):
         self.word = word.lower()
@@ -337,44 +363,35 @@ class Word:
     def __repr__(self) -> str:
         return self.word
     
+
+
 def schema_generator(crosswords):
         # { answer: clue }
         answers = sorted(crosswords.keys(), key = len, reverse = True)
         n = len(answers[0])
-        cw = Crossword(n, n, available_words=answers)
-        cw.compute_crossword(2)
+        cw = Crossword(n, n, gamedata=crosswords, available_words=answers)
+        schema = cw.compute_crossword(3)
+        return schema
 
 def print_attributes(obj):
     for attr, value in obj.__dict__.items():
         print(f"{attr}: {value}")
 
-if __name__ == "__main__":
-#     text = txtlib.SLOTH_CASUAL
-#     keywords = filterKeywords(keywords(text))
-#     pprint.pprint(keywords)
-#     clues = clueGenerator(keywords, text)
-#     print(clues)
-    with open('crosswords.json', 'r') as file:
-        crosswords = json.load(file)
+def format_crossword(cw):
+    formatted = {}
+    for a, c in cw.items():
+        formatted_a = a.lower()
+        if ' ' in formatted_a:
+            formatted_a = formatted_a.replace(' ', '')
+            c += " (Two words.)"
     
-    print(crosswords.keys())
-    schema_generator(crosswords)
+        formatted[formatted_a] = c
+    return formatted
 
-# { SCHEMA EXPECTATION
-#   across: {
-#     1: {
-#       clue: 'one plus one',
-#       answer: 'TWO',
-#       row: 0,
-#       col: 0,
-#     },
-#   },
-#   down: {
-#     2: {
-#       clue: 'three minus two',
-#       answer: 'ONE',
-#       row: 0,
-#       col: 2,
-#     },
-#   },
-# }
+
+if __name__ == "__main__":
+    text = txtlib.SLOTH_FORMAL
+    keywords = filter_keywords(keywords(text))
+    crossword = format_crossword(clue_generator(keywords, text))
+    schema = schema_generator(crossword)
+    pprint.pprint(schema)
